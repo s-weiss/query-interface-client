@@ -1,6 +1,6 @@
 # Query Interface Client
 
-TODO
+``query-interface-client`` provides a flexible query interface for Her::Model.
 
 ## Installation
 
@@ -16,8 +16,32 @@ or use ``gem 'query-interface-client'`` in your Gemfile when using bundler.
 
 ##Examples
 
-TODO
+### Adding QueryInterface to a Model
+
+```ruby
+
+class SomeClass
+
+  include Her::Model
+  include Her::Model::ResourceExtension
+  include QueryInterface::Client::Resource
+
+  #...
+
+end
+```
 
 ### Usage
 
-TODO
+```ruby
+SomeClass.query
+  .filter(status: 'ok', foo: 'bar')
+  .count
+
+most_urgent = SomeClass.query
+  .filter(urgent:true)
+  .order('-urgency')
+  .first
+
+SomeClass.query.paginate(page: 3, per_page: 13)
+```
