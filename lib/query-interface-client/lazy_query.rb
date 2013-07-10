@@ -61,7 +61,7 @@ module QueryInterface
       end
 
       def paginate(params = {})
-        params = {page: 1, per_page: Settings.pagination.per_page, mode: :paginate}.merge(params)
+        params = {page: 1, per_page: 10, mode: :paginate}.merge(params)
         raw = self.do_raw_query(params)[:parsed_data]
         result = raw[:data]
         objects = result[:objects].map { |h| self.model.new(h) }
