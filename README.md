@@ -1,6 +1,6 @@
 # Query Interface Client
 
-bla
+TODO
 
 ## Installation
 
@@ -16,8 +16,8 @@ or use ``gem 'query-interface-client'`` in your Gemfile when using bundler.
 
 ##Examples
 
-blu
+TODO
 
 ### Usage
 
-blah
+TODO
