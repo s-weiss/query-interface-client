@@ -36,6 +36,7 @@ GEM
     thread_safe (0.1.0)
       atomic
     tzinfo (0.3.37)
+    will_paginate (3.0.4)
 
 PLATFORMS
   ruby
@@ -44,3 +45,4 @@ DEPENDENCIES
   her
   rake
   rspec
+  will_paginate
