@@ -66,6 +66,11 @@ module QueryInterface
         end
       end
 
+      def do_resource_query(params={})
+        raw = self.do_raw_query(params)
+        self.result ||= self.instantiate(raw[:parsed_data][:data])
+      end
+
       def do_raw_query(params = {})
         self.model.get_raw(:query, query_data: self.api_params.merge(params))
       end
@@ -79,11 +84,10 @@ module QueryInterface
       end
 
       def evaluate
-        unless self.api_params[:instance] && !self.api_params[:context] 
+        unless self.api_params[:instance] && !self.api_params[:context]
           self.result ||= self.do_collection_query(mode: :evaluate)
         else
-          raw = self.do_raw_query(mode: :evaluate)
-          self.result ||= self.instantiate(raw[:parsed_data][:data])
+          self.do_resource_query(mode: :evaluate)
         end
       end
 
@@ -126,8 +130,6 @@ module QueryInterface
         else
           self.do_resource_query(params.merge(mode: which))
         end
-      rescue Faraday::Error::ResourceNotFound
-        nil
       end
 
     end

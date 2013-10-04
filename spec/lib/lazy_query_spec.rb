@@ -8,19 +8,22 @@ def deep_copy_check(left, right)
   end
 end
 
+class Context
+end
+
 describe QueryInterface::Client::LazyQuery do
   subject {QueryInterface::Client::LazyQuery}
   let(:model) {double("Dummy Model")}
-  let(:default_params) { {conditions: {}, with: [], order: []} }
+  let(:default_params) { {conditions: {}, with: [], order: [], context: nil, instance: nil} }
 
   context "construction" do
     let(:api_params) do
-      {conditions: {field: 'value'}, with: [:inclusion], order: ["-something"]}
+      {conditions: {field: 'value'}, with: [:inclusion], order: ["-something"], instance: nil, context: nil}
     end
 
     it "initializes itself with empty parameters and a supplied model" do
       query = subject.new(model)
-      query.api_params.should == {conditions: {}, with: [], order: []}
+      query.api_params.should == {conditions: {}, with: [], order: [], instance: nil, context: nil}
       query.model.should eq(model)
     end
 
@@ -54,6 +57,29 @@ describe QueryInterface::Client::LazyQuery do
       query.should_receive(:copy).and_return(query_copy)
       query.filter(a: :b)
       query_copy.api_params[:conditions].should eq({a: :b})
+    end
+  end
+
+  context "instancing" do
+    it "sets the instance parameter" do
+      query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
+      query.instance(5)
+      query.api_params[:instance].should eq(5)
+    end
+  end
+
+  context "context" do
+    let(:query) {subject.new(model)}
+    before do
+      query.should_receive(:copy).and_return(query)
+      query.context(:context)
+    end
+    it "should set the correct result model class" do
+      query.result_model.should == Context
+    end
+    it "sets the context parameter" do
+      query.api_params[:context].should eq(:context)
     end
   end
 
@@ -95,10 +121,11 @@ describe QueryInterface::Client::LazyQuery do
   context "first" do
     it "gets the first object via do_query" do
       query = subject.new(model)
-      model.should_receive(:get_resource)
+      model.should_receive(:get_raw)
         .with(:query, query_data: default_params.merge(mode: :first))
-        .and_return("result object")
-      query.first.should eq("result object")
+        .and_return({parsed_data: { data: "result object" } } )
+      model.should_receive(:new).with("result object")
+      query.first
     end
 
     it "uses the cached result" do
@@ -110,23 +137,40 @@ describe QueryInterface::Client::LazyQuery do
   end
 
   context "evaluate" do
-    it "gets results via do_query and caches the result" do
-      query = subject.new(model)
-      model.should_receive(:get_collection)
+    let(:query) {subject.new(model)}
+    context "without instance set" do
+      before do
+        model.should_receive(:get_collection)
         .with(:query, query_data: default_params.merge(mode: :evaluate))
         .and_return(["result object"])
-      query.evaluate.should eq(["result object"])
-      query.result.should eq(["result object"])
+      end
+      it "gets results via do_query and caches the result" do
+        query.evaluate.should eq(["result object"])
+        query.result.should eq(["result object"])
+      end
+
+      it "doesn't query the api twice" do
+        result = query.evaluate
+        result_second = query.evaluate
+        result.should be(result_second)
+      end
     end
 
-    it "doesn't query the api twice" do
-      query = subject.new(model)
-      model.should_receive(:get_collection)
-        .with(:query, query_data: default_params.merge(mode: :evaluate))
-        .and_return(["result object"])
-      result = query.evaluate
-      result_second = query.evaluate
-      result.should be(result_second)
+    context "with instance" do
+      it "expects one result object when instance is set without context" do
+        model.should_receive(:get_raw)
+          .with(:query, query_data: default_params.merge(mode: :evaluate, instance: 5))
+          .and_return({parsed_data: { data: "result object" } })
+        model.should_receive(:new).with("result object")
+        query.instance(5).evaluate
+      end
+      it "retrieves the collection with context if instance and context are set" do
+        model.should_receive(:get_raw)
+          .with(:query, query_data: default_params.merge(mode: :evaluate, instance: 5, context: :context))
+          .and_return({parsed_data: { data: ["result object"] } })
+        Context.should_receive(:new).with("result object")
+        query.instance(5).context(:context).evaluate
+      end
     end
   end
 
