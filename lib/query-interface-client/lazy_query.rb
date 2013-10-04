@@ -4,7 +4,7 @@ module QueryInterface
 
       attr_accessor :model, :api_params, :result, :result_model
 
-      def initialize(model, api_params = nil)
+      def initialize(model, api_params=nil, result_model=nil)
         self.model = model
         self.api_params = {
           conditions: api_params ? api_params[:conditions].dup : {},
@@ -14,6 +14,7 @@ module QueryInterface
           instance: api_params ? api_params[:instance] : nil,
         }
         self.result = nil
+        self.result_model = result_model
       end
 
       def instantiate(data)
@@ -52,7 +53,7 @@ module QueryInterface
       end
 
       def copy(options = {})
-        self.class.new(self.model, self.api_params)
+        self.class.new(self.model, self.api_params, self.result_model)
       end
 
       def do_collection_query(params={})
