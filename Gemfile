@@ -2,6 +2,7 @@ source 'http://rubygems.org'
 
 gem 'her'
 gem 'will_paginate'
+gem 'activesupport', require: false
 
 group :development do
   gem 'rake'
