@@ -2,7 +2,7 @@ module QueryInterface
   module Client
     class LazyQuery
 
-      attr_accessor :model, :api_params, :result
+      attr_accessor :model, :api_params, :result, :result_model
 
       def initialize(model, api_params = nil)
         self.model = model
@@ -10,13 +10,32 @@ module QueryInterface
           conditions: api_params ? api_params[:conditions].dup : {},
           with: api_params ? api_params[:with].dup : [],
           order: api_params ? api_params[:order].dup : [],
+          context: api_params ? api_params[:context] : nil,
+          instance: api_params ? api_params[:instance] : nil,
         }
         self.result = nil
+      end
+
+      def instantiate(data)
+        (self.result_model ? self.result_model.new(data) : self.model.new(data))
       end
 
       def filter(conditions)
         self.copy.tap do |dataset|
           dataset.api_params[:conditions].merge!(conditions)
+        end
+      end
+
+      def instance(id)
+        self.copy.tap do |dataset|
+          dataset.api_params[:instance] = id
+        end
+      end
+
+      def context(association, model=nil)
+        self.copy.tap do |dataset|
+          dataset.result_model = (model ? model : association.to_s.singularize.camelize.constantize)
+          dataset.api_params[:context] = association
         end
       end
 
@@ -37,11 +56,14 @@ module QueryInterface
       end
 
       def do_collection_query(params={})
-        self.model.get_collection(:query, query_data: self.api_params.merge(params))
-      end
-
-      def do_resource_query(params = {})
-        self.model.get_resource(:query, query_data: self.api_params.merge(params))
+        unless self.result_model
+          self.model.get_collection(:query, query_data: self.api_params.merge(params))
+        else
+          raw = self.do_raw_query(params)
+          raw[:parsed_data][:data].map do |h|
+            self.instantiate(h)
+          end
+        end
       end
 
       def do_raw_query(params = {})
@@ -57,22 +79,26 @@ module QueryInterface
       end
 
       def evaluate
-        self.result ||= self.do_collection_query(mode: :evaluate)
+        unless self.api_params[:instance] && !self.api_params[:context] 
+          self.result ||= self.do_collection_query(mode: :evaluate)
+        else
+          raw = self.do_raw_query(mode: :evaluate)
+          self.result ||= self.instantiate(raw[:parsed_data][:data])
+        end
       end
 
       def paginate(params = {})
         params = {page: 1, per_page: 10, mode: :paginate}.merge(params)
         raw = self.do_raw_query(params)[:parsed_data]
         result = raw[:data]
-        objects = result[:objects].map { |h| self.model.new(h) }
+        objects = result[:objects].map { |h| self.instantiate(h) }
         WillPaginate::Collection.create(params[:page], params[:per_page], result[:total]) do |pager|
           pager.replace objects
         end
       end
 
       def ids
-        response = self.do_raw_query(mode: :ids)
-        response.try(:[], :data)
+        self.do_raw_query(mode: :ids)[:parsed_data][:data]
       end
 
       def count
