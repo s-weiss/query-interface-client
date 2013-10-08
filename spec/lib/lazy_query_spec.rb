@@ -2,9 +2,8 @@ require 'spec_helper'
 
 
 def deep_copy_check(left, right)
-  left.should_not be(right)
-  [:conditions, :with, :order].each do |key|
-    left[key].should_not be(right[key])
+  left.each_with_index do |item, idx|
+    right[idx].should_not be(item)
   end
 end
 
@@ -14,49 +13,43 @@ end
 describe QueryInterface::Client::LazyQuery do
   subject {QueryInterface::Client::LazyQuery}
   let(:model) {double("Dummy Model")}
-  let(:default_params) { {conditions: {}, with: [], order: [], context: nil, instance: nil} }
+  let(:transformations) {[{transformation: :filter, parameter: {field: "hase", value: "wuschel"}}]}
 
   context "construction" do
-    let(:api_params) do
-      {conditions: {field: 'value'}, with: [:inclusion], order: ["-something"], instance: nil, context: nil}
-    end
 
     it "initializes itself with empty parameters and a supplied model" do
       query = subject.new(model)
-      query.api_params.should == {conditions: {}, with: [], order: [], instance: nil, context: nil}
+      query.transformations.should == []
       query.model.should eq(model)
     end
 
-    it "honors passed api params" do
-      query = subject.new(model, api_params)
-      query.api_params.should == api_params
+    it "honors passed transformations params" do
+      query = subject.new(model, transformations)
+      query.transformations.should eq(transformations)
     end
 
-    it "does not alter the originally passed api_params" do
-      query = subject.new(model, api_params)
-      deep_copy_check(api_params, query.api_params)
+    it "does not alter the originally passed transformations" do
+      query = subject.new(model, transformations)
+      deep_copy_check(transformations, query.transformations)
     end
   end
 
   context "copy" do
-    let(:api_params) do
-      {conditions: {field: 'value'}, with: [:inclusion], order: ["-something"]}
-    end
-    it "provides a copy method cloning api_params onto a new instance" do
-      query = subject.new(model, api_params)
+    it "provides a copy method cloning transformations onto a new instance" do
+      query = subject.new(model, transformations)
       query_copy = query.copy
-      query_copy.api_params.should eq(query.api_params)
-      deep_copy_check(query_copy.api_params, query.api_params)
+      query_copy.transformations.should eq(query.transformations)
+      deep_copy_check(query_copy.transformations, query.transformations)
     end
   end
 
   context "filtering" do
-    it "should create a new instance with updated api_params" do
+    it "should create a new instance with updated transformations" do
       query = subject.new(model)
       query_copy = subject.new(model)
       query.should_receive(:copy).and_return(query_copy)
       query.filter(a: :b)
-      query_copy.api_params[:conditions].should eq({a: :b})
+      query_copy.transformations.should eq([{transformation: :filter, parameter: {field: :a, value: :b}}])
     end
   end
 
@@ -65,7 +58,7 @@ describe QueryInterface::Client::LazyQuery do
       query = subject.new(model)
       query.should_receive(:copy).and_return(query)
       query.instance(5)
-      query.api_params[:instance].should eq(5)
+      query.transformations.should eq([{transformation: :instance, parameter: 5}])
     end
   end
 
@@ -79,7 +72,7 @@ describe QueryInterface::Client::LazyQuery do
       query.result_model.should == Context
     end
     it "sets the context parameter" do
-      query.api_params[:context].should eq(:context)
+      query.transformations.should eq([{transformation: :context, parameter: :context}])
     end
   end
 
@@ -89,7 +82,7 @@ describe QueryInterface::Client::LazyQuery do
       query_copy = subject.new(model)
       query.should_receive(:copy).and_return(query_copy)
       query.with(:c)
-      query_copy.api_params[:with].should eq([:c])
+      query_copy.transformations.should eq([{transformation: :with, parameter: :c}])
     end
   end
 
@@ -99,105 +92,106 @@ describe QueryInterface::Client::LazyQuery do
       query_copy = subject.new(model)
       query.should_receive(:copy).and_return(query_copy)
       query.order("-something")
-      query_copy.api_params[:order].should eq(["-something"])
+      query_copy.transformations.should eq([{transformation: :order, parameter: "-something"}])
     end
   end
 
   context "chaining" do
-    it "allows chaining of filter and with" do
+    it "allows chaining transformations in order of appearance" do
       query = subject.new(model)
-      query_copy = query.filter(a: :b).filter(c: :d).with(:e).with(:f, :g)
-      query_copy.api_params[:conditions].should eq({a: :b, c: :d})
-      query_copy.api_params[:with].should eq([:e, :f, :g])
-    end
-
-    it "calling order multiple times overwrites" do
-      query = subject.new(model)
-      query_copy = query.order("-something").order("now really")
-      query_copy.api_params[:order].should eq(["now really"])
+      query_copy = query.filter(a: :b, c: :d).filter(e: :f).with(:x, :y).instance(12).context(:context)
+      query_copy.transformations.should eq(
+        [
+          {transformation: :filter, parameter: {field: :a, value: :b}},
+          {transformation: :filter, parameter: {field: :c, value: :d}},
+          {transformation: :filter, parameter: {field: :e, value: :f}},
+          {transformation: :with, parameter: :x},
+          {transformation: :with, parameter: :y},
+          {transformation: :instance, parameter: 12},
+          {transformation: :context, parameter: :context}
+        ]
+      )
     end
   end
 
   context "first" do
+    let(:transformations) {[transformation: :first, parameter: nil]}
     it "gets the first object via do_query" do
       query = subject.new(model)
-      model.should_receive(:get_raw)
-        .with(:query, query_data: default_params.merge(mode: :first))
-        .and_return({parsed_data: { data: "result object" } } )
-      model.should_receive(:new).with("result object")
+      query.should_receive(:do_query)
       query.first
+      query.transformations.should eq(self.transformations)
     end
 
     it "uses the cached result" do
       query = subject.new(model)
       query.result = ["a", "b", "c"]
-      query.should_not_receive(:do_query)
+      query.should_not_receive(:do_raw_query)
       query.first.should eq("a")
     end
   end
 
   context "evaluate" do
-    let(:query) {subject.new(model)}
+    let(:transformations) {[{transformation: :evaluate, parameter: nil}]}
     context "without instance set" do
       before do
-        model.should_receive(:get_collection)
-        .with(:query, query_data: default_params.merge(mode: :evaluate))
-        .and_return(["result object"])
+        model.should_receive(:get_raw)
+        .with(:query, transformations: self.transformations)
+        .and_return({parsed_data: {data: ["result object"]}})
+        model.stub(:new_collection).and_return(["result object"])
       end
+
+      it "add an evaluation transformation" do
+        query = subject.new(model)
+        query.evaluate
+        query.transformations.should eq(transformations)
+      end
+
       it "gets results via do_query and caches the result" do
+        query = subject.new(model)
         query.evaluate.should eq(["result object"])
         query.result.should eq(["result object"])
       end
 
       it "doesn't query the api twice" do
+        query = subject.new(model)
         result = query.evaluate
         result_second = query.evaluate
         result.should be(result_second)
       end
     end
-
-    context "with instance" do
-      it "expects one result object when instance is set without context" do
-        model.should_receive(:get_raw)
-          .with(:query, query_data: default_params.merge(mode: :evaluate, instance: 5))
-          .and_return({parsed_data: { data: "result object" } })
-        model.should_receive(:new).with("result object")
-        query.instance(5).evaluate
-      end
-      it "retrieves the collection with context if instance and context are set" do
-        model.should_receive(:get_raw)
-          .with(:query, query_data: default_params.merge(mode: :evaluate, instance: 5, context: :context))
-          .and_return({parsed_data: { data: ["result object"] } })
-        Context.should_receive(:new).with("result object")
-        query.instance(5).context(:context).evaluate
-      end
-    end
   end
 
   context "count" do
-    it "gets the count via do_query" do
+    let(:transformations) {[{transformation: :count, parameter: nil}]}
+
+    it "adds a count transformation" do
       query = subject.new(model)
-      model.should_receive(:get_raw).with(:query, query_data: default_params.merge(mode: :count))
-      .and_return({parsed_data: {data: {count: 42}}})
+      query.should_receive(:do_raw_query).and_return({parsed_data: {data: {count: 42}}})
       query.count.should eq(42)
+      query.transformations.should eq(self.transformations)
     end
 
     it "uses cached result for counting" do
       query = subject.new(model)
       query.result = ["a", "b", "c"]
-      query.should_not_receive(:do_query)
+      query.should_not_receive(:do_raw_query)
       query.count.should eq(3)
     end
   end
 
   context "paginate" do
-    it "paginates results" do
+    let(:transformations) {[{transformation: :paginate, parameter: {page: 1, per_page: 10}}]}
+
+
+    it "adds a paginate transformation" do
       query = subject.new(model)
       objects = (1..10).to_a
-      model.should_receive(:get_raw).with(:query, query_data: default_params.merge({mode: :paginate, page: 1, per_page: 10})).and_return({parsed_data: {data: {objects: objects, total: 15}, errors: []}})
-      objects.should_receive(:map).and_return(objects)
-      result = query.paginate(page: 1, per_page: 10)
-      result.should eq((1..10).to_a)
+      model.stub(:new).and_return(*objects)
+      query.should_receive(:do_raw_query).and_return({parsed_data: {data: {objects: objects, total: 15}, errors: []}})
+      result = query.paginate
+      query.transformations.should eq(self.transformations)
+      result.should eq(objects)
       result.is_a?(WillPaginate::Collection)
       result.total_entries.should eq(15)
     end
@@ -211,6 +205,11 @@ describe QueryInterface::Client::LazyQuery do
       result.should_receive(:frobnicate!).with("uargh!")
       query.frobnicate!("uargh!")
     end
+  end
+
+  context "do queries" do
+    it "do_raw_query"
+    it "do_query"
   end
 
 end
