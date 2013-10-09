@@ -77,27 +77,30 @@ module QueryInterface
       end
 
       def paginate(params={})
+        query = self.copy
         params = {page: 1, per_page: 10,}.merge(params)
-        self.add_transformation(:paginate, params)
-        raw = self.do_raw_query()
+        query.add_transformation(:paginate, params)
+        raw = query.do_raw_query()
         result = raw[:parsed_data][:data]
-        objects = result[:objects].map { |h| self.instantiate(h) }
+        objects = result[:objects].map { |h| query.instantiate(h) }
         WillPaginate::Collection.create(params[:page], params[:per_page], result[:total]) do |pager|
           pager.replace objects
         end
       end
 
       def ids
-        self.add_transformation(:map_ids)
-        self.do_raw_query()[:parsed_data][:data]
+        query = self.copy
+        query.add_transformation(:map_ids)
+        query.do_raw_query()[:parsed_data][:data]
       end
 
       def count
         if self.result
           self.result.count
         else
-          self.add_transformation(:count)
-          r = self.do_raw_query()
+          query = self.copy
+          query.add_transformation(:count)
+          r = query.do_raw_query()
           r[:parsed_data][:data][:count]
         end
       end
@@ -140,8 +143,9 @@ module QueryInterface
         if self.result
           self.result.send(which)
         else
-          self.add_transformation(which)
-          self.do_query
+          query = self.copy
+          query.add_transformation(which)
+          query.do_query
         end
       end
 
