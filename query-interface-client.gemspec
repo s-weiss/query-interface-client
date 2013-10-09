@@ -25,6 +25,7 @@ Gem::Specification.new do |s|
 
   s.add_runtime_dependency(%q<her>)
   s.add_runtime_dependency(%q<will_paginate>)
+  s.add_runtime_dependency(%q<activesupport>)
   s.add_development_dependency(%q<rake>)
   s.add_development_dependency(%q<rspec>)
 end
