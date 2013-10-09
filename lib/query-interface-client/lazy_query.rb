@@ -73,7 +73,6 @@ module QueryInterface
       end
 
       def evaluate
-        self.add_transformation(:evaluate)
         self.result ||= self.do_query()
       end
 

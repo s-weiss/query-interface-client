@@ -132,7 +132,7 @@ describe QueryInterface::Client::LazyQuery do
   end
 
   context "evaluate" do
-    let(:transformations) {[{transformation: :evaluate, parameter: nil}]}
+    let(:transformations) {[]}
     context "without instance set" do
       before do
         model.should_receive(:get_raw)
@@ -208,8 +208,29 @@ describe QueryInterface::Client::LazyQuery do
   end
 
   context "do queries" do
-    it "do_raw_query"
-    it "do_query"
+    it "queries the api raw" do
+      query = subject.new(model)
+      model.should_receive(:get_raw).with(:query, transformations: [])
+      query.do_raw_query
+    end
+
+    it "executes the actual query and creates a collection where appropriate" do
+      query = subject.new(model)
+      data = {parsed_data: {data: [1,2,3]}}
+      query.should_receive(:do_raw_query).and_return(data)
+      query.should_receive(:instantiate_collection).with(data[:parsed_data])
+      query.do_query
+    end
+
+    it "executes the actual query and creates an object where appropriate" do
+      query = subject.new(model)
+      data = {parsed_data: {data: {id: 1, bunny: 'wuschel'}}}
+      query.should_receive(:do_raw_query).and_return(data)
+      query.should_receive(:parse).and_return(data[:parsed_data])
+      query.should_receive(:instantiate).with(data[:parsed_data].merge(_metadata: nil, _errors: nil))
+      query.do_query
+    end
+
   end
 
 end
