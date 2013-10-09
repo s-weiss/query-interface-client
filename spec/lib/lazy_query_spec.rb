@@ -131,6 +131,23 @@ describe QueryInterface::Client::LazyQuery do
     end
   end
 
+  context "last" do
+    let(:transformations) {[transformation: :last, parameter: nil]}
+    it "gets the last object via do_query" do
+      query = subject.new(model)
+      query.should_receive(:do_query)
+      query.last
+      query.transformations.should eq(self.transformations)
+    end
+
+    it "uses the cached result" do
+      query = subject.new(model)
+      query.result = ["a", "b", "c"]
+      query.should_not_receive(:do_raw_query)
+      query.last.should eq("c")
+    end
+  end
+
   context "evaluate" do
     let(:transformations) {[]}
     context "without instance set" do
@@ -159,6 +176,23 @@ describe QueryInterface::Client::LazyQuery do
         result_second = query.evaluate
         result.should be(result_second)
       end
+    end
+  end
+
+  context "ids" do
+    let(:transformations) { [{transformation: :map_ids, parameter: nil}] }
+
+    it "adds a map_ids transformation" do
+      query = subject.new(model)
+      query.stub!(:do_raw_query).and_return({parsed_data: {data: [1,2,3]}})
+      query.ids
+      query.transformations.should eq(self.transformations)
+    end
+
+    it "returns the data of the parsed query" do
+      query = subject.new(model)
+      query.should_receive(:do_raw_query).and_return({parsed_data: {data: [1,2,3]}})
+      query.ids.should eq([1, 2, 3])
     end
   end
 
@@ -231,6 +265,40 @@ describe QueryInterface::Client::LazyQuery do
       query.do_query
     end
 
+  end
+
+  context "parsing" do
+    let(:result_model) { double("result model") }
+    let(:data) { double("data") }
+
+    it "parses the data via result model if set" do
+      query = subject.new(model)
+      query.result_model = result_model
+      result_model.should_receive(:parse).with(data)
+      query.parse(data)
+    end
+
+    it "parses the data via model if no result model set" do
+      query = subject.new(model)
+      model.should_receive(:parse).with(data)
+      query.parse(data)
+    end
+  end
+
+  context "to_json" do
+    let(:transformations) {[]}
+    let(:result) { double("result") }
+    before do
+      model.should_receive(:get_raw)
+      .with(:query, transformations: self.transformations)
+      .and_return({parsed_data: {data: ["result object"]}})
+      model.stub(:new_collection).and_return(result)
+    end
+    it "calls to_json on the evaluated result" do
+      query = subject.new(model)
+      result.should_receive(:to_json)
+      query.to_json
+    end
   end
 
 end
