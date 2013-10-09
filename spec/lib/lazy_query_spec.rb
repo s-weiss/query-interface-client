@@ -118,6 +118,7 @@ describe QueryInterface::Client::LazyQuery do
     let(:transformations) {[transformation: :first, parameter: nil]}
     it "gets the first object via do_query" do
       query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
       query.should_receive(:do_query)
       query.first
       query.transformations.should eq(self.transformations)
@@ -135,6 +136,7 @@ describe QueryInterface::Client::LazyQuery do
     let(:transformations) {[transformation: :last, parameter: nil]}
     it "gets the last object via do_query" do
       query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
       query.should_receive(:do_query)
       query.last
       query.transformations.should eq(self.transformations)
@@ -184,6 +186,7 @@ describe QueryInterface::Client::LazyQuery do
 
     it "adds a map_ids transformation" do
       query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
       query.stub!(:do_raw_query).and_return({parsed_data: {data: [1,2,3]}})
       query.ids
       query.transformations.should eq(self.transformations)
@@ -191,6 +194,7 @@ describe QueryInterface::Client::LazyQuery do
 
     it "returns the data of the parsed query" do
       query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
       query.should_receive(:do_raw_query).and_return({parsed_data: {data: [1,2,3]}})
       query.ids.should eq([1, 2, 3])
     end
@@ -201,6 +205,7 @@ describe QueryInterface::Client::LazyQuery do
 
     it "adds a count transformation" do
       query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
       query.should_receive(:do_raw_query).and_return({parsed_data: {data: {count: 42}}})
       query.count.should eq(42)
       query.transformations.should eq(self.transformations)
@@ -220,6 +225,7 @@ describe QueryInterface::Client::LazyQuery do
 
     it "adds a paginate transformation" do
       query = subject.new(model)
+      query.should_receive(:copy).and_return(query)
       objects = (1..10).to_a
       model.stub(:new).and_return(*objects)
       query.should_receive(:do_raw_query).and_return({parsed_data: {data: {objects: objects, total: 15}, errors: []}})
