@@ -76,14 +76,13 @@ module QueryInterface
         self.result ||= self.do_query()
       end
 
-      def paginate(params={})
+      def paginate(page:1, per_page: 10)
         query = self.copy
-        params = {page: 1, per_page: 10,}.merge(params)
-        query.add_transformation(:paginate, params)
+        query.add_transformation(:paginate, {page: page, per_page: per_page})
         raw = query.do_raw_query()
         result = raw[:parsed_data][:data]
         objects = result[:objects].map { |h| query.instantiate(h) }
-        WillPaginate::Collection.create(params[:page], params[:per_page], result[:total]) do |pager|
+        WillPaginate::Collection.create(page, per_page, result[:total]) do |pager|
           pager.replace objects
         end
       end
