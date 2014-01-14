@@ -76,7 +76,7 @@ module QueryInterface
         self.result ||= self.do_query()
       end
 
-      def paginate(page:1, per_page: 10)
+      def paginate(page: 1, per_page: 10)
         query = self.copy
         query.add_transformation(:paginate, {page: page, per_page: per_page})
         raw = query.do_raw_query()
